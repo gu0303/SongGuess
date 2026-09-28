@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Song Guess — O Jogo Definitivo de Adivinhar Músicas</title>
+  <meta name="description" content="Adivinhe músicas e bandas ouvindo trechos de 5 a 30 segundos. Teste seus conhecimentos musicais com playlists do Spotify e Deezer!">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Ambient background glow elements -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-logo" id="brand-logo" role="button" tabindex="0">
+        <div class="logo-icon">🎵</div>
+        <div class="logo-text">
+          <span class="logo-title">Song Guess</span>
+          <span class="logo-subtitle">Solo Edition</span>
+        </div>
+      </div>
+
+      <!-- In-Game Stats Ticker (hidden in lobby) -->
+      <div class="game-ticker" id="game-ticker" style="display: none;">
+        <div class="ticker-item">
+          <span class="ticker-label">Rodada</span>
+          <span class="ticker-value" id="ticker-round">1/10</span>
+        </div>
+        <div class="ticker-separator"></div>
+        <div class="ticker-item">
+          <span class="ticker-label">Pontuação</span>
+          <span class="ticker-value highlight" id="ticker-score">0 pts</span>
+        </div>
+        <div class="ticker-separator"></div>
+        <div class="ticker-item">
+          <span class="ticker-label">Acertos</span>
+          <span class="ticker-value" id="ticker-hits">0</span>
+        </div>
+      </div>
+
+      <!-- Header Controls -->
+      <div class="header-controls">
+        <!-- Volume Control (RD-02) -->
+        <div class="volume-container">
+          <button class="icon-btn" id="volume-toggle-btn" title="Mutar/Desmutar" aria-label="Controle de Volume">
+            <span id="volume-icon">🔊</span>
+          </button>
+          <div class="volume-slider-wrapper">
+            <input type="range" id="volume-slider" min="0" max="100" value="80" aria-label="Volume">
+            <span class="volume-tooltip" id="volume-val">80%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-container">
+    
+    <!-- ============================================== -->
+    <!-- VIEW 1: LOBBY / CONFIGURAÇÃO                   -->
+    <!-- ============================================== -->
+    <section class="game-view" id="view-lobby">
+      <div class="lobby-wrapper">
+        
+        <!-- Welcome Hero -->
+        <div class="hero-card">
+          <div class="hero-badge">⚡ Desafio Musical</div>
+          <h1 class="hero-title">Adivinhe a Música pelo Trecho</h1>
+          <p class="hero-desc">
+            Ouça os acordes, confie no seu ouvido e adivinhe o mais rápido possível.
+            Basta colar o link de qualquer playlist do Spotify ou Deezer para começar!
+          </p>
+        </div>
+
+        <!-- Setup Grid -->
+        <div class="setup-grid">
+          
+          <!-- Column 1: Configurações Gerais -->
+          <div class="glass-card config-card">
+            <h2 class="card-title">Configurações da Partida</h2>
+
+            <!-- Player Name -->
+            <div class="form-group">
+              <label for="player-name-input" class="form-label">Seu Nome / Apelido</label>
+              <input type="text" id="player-name-input" class="input-text" placeholder="Ex: Maestro" maxlength="24" value="Jogador">
+            </div>
+
+            <!-- Mode Selection -->
+            <div class="form-group">
+              <label class="form-label">Modo de Jogo</label>
+              <div class="mode-selector">
+                <button type="button" class="mode-btn active" data-mode="1" id="mode-btn-1">
+                  <div class="mode-badge">Modo 1</div>
+                  <div class="mode-name">Múltipla Escolha</div>
+                  <div class="mode-desc">4 opções ("Música — Banda"). Acertar só a banda vale 40% e dá nova chance!</div>
+                </button>
+                <button type="button" class="mode-btn" data-mode="2" id="mode-btn-2">
+                  <div class="mode-badge">Modo 2</div>
+                  <div class="mode-name">Digitação</div>
+                  <div class="mode-desc">Digite o título ou a banda. Veja a porcentagem (%) de semelhança a cada tentativa.</div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Clip Duration (CF-01) -->
+            <div class="form-group">
+              <label class="form-label">Duração do Trecho Tocador</label>
+              <div class="clip-selector" id="clip-selector">
+                <button type="button" class="clip-pill" data-clip="5">5s</button>
+                <button type="button" class="clip-pill active" data-clip="10">10s</button>
+                <button type="button" class="clip-pill" data-clip="15">15s</button>
+                <button type="button" class="clip-pill" data-clip="20">20s</button>
+                <button type="button" class="clip-pill" data-clip="30">30s</button>
+              </div>
+              <small class="helper-text">O trecho toca automaticamente ao iniciar cada rodada (RD-00).</small>
+            </div>
+
+            <!-- Number of Rounds (CF-02) -->
+            <div class="form-group">
+              <label class="form-label" for="rounds-select">Número de Rodadas</label>
+              <select id="rounds-select" class="select-input">
+                <option value="10" selected>10 Rodadas</option>
+                <option value="15">15 Rodadas</option>
+                <option value="20">20 Rodadas</option>
+                <option value="30">30 Rodadas</option>
+                <option value="50">50 Rodadas</option>
+              </select>
+            </div>
+
+          </div>
+
+          <!-- Column 2: Playlist Link Input -->
+          <div class="glass-card playlist-card">
+            <h2 class="card-title">Link da Playlist</h2>
+            
+            <p class="playlist-instructions">
+              Cole o link de qualquer playlist pública do <strong>Spotify</strong> ou <strong>Deezer</strong> (não é necessário fazer login):
+            </p>
+
+            <form class="playlist-url-form" id="playlist-url-form" onsubmit="return false;">
+              <div class="url-input-wrapper">
+                <input type="url" id="playlist-url-input" class="input-text url-input" placeholder="https://open.spotify.com/playlist/... ou Deezer" autocomplete="off">
+                <button type="button" class="btn btn-primary btn-load-url" id="btn-load-playlist">
+                  Carregar
+                </button>
+              </div>
+              <div class="url-feedback" id="url-feedback" style="display: none;"></div>
+            </form>
+
+            <!-- Empty state when no playlist is loaded yet -->
+            <div class="playlist-empty-card" id="playlist-empty-state">
+              <div class="empty-icon">🎵</div>
+              <div class="empty-text">
+                <strong>Nenhuma playlist carregada ainda</strong>
+                <span>Cole o link de uma playlist do Spotify ou Deezer acima para carregar as músicas da partida.</span>
+              </div>
+            </div>
+
+            <!-- Loaded Playlist Card Preview (displays only after pasting link) -->
+            <div class="loaded-playlist-preview" id="loaded-playlist-preview" style="display: none;">
+              <img id="preview-cover" src="" alt="Capa" class="loaded-cover">
+              <div class="loaded-details">
+                <div class="loaded-badge" id="preview-source">🟢 Spotify</div>
+                <h3 class="loaded-name" id="preview-name">—</h3>
+                <p class="loaded-desc" id="preview-desc">—</p>
+                <span class="loaded-count" id="preview-count">— faixas carregadas</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Start Game CTA Bar -->
+        <div class="cta-bar">
+          <div class="cta-info">
+            <span class="cta-playlist-label">Playlist selecionada:</span>
+            <strong class="cta-playlist-name unselected" id="selected-playlist-name">Nenhuma (cole o link acima)</strong>
+          </div>
+          <button type="button" class="btn btn-primary btn-start" id="btn-start-game">
+            <span class="btn-icon">▶</span>
+            <span>Estou Pronto / Iniciar Jogo</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 2: GAME BOARD (DURANTE A RODADA)          -->
+    <!-- ============================================== -->
+    <section class="game-view" id="view-game" style="display: none;">
+      <div class="game-board-wrapper">
+
+        <!-- Top Progress & Timer Bar -->
+        <div class="round-progress-card">
+          <div class="progress-meta">
+            <div class="meta-round">
+              <span class="badge-pill">Rodada <strong id="game-round-num">1</strong> de <span id="game-total-rounds">10</span></span>
+              <span class="clip-badge" id="game-clip-badge">Trecho: 10s</span>
+            </div>
+            
+            <div class="meta-timer">
+              <span class="timer-icon">⏱️</span>
+              <span class="timer-countdown" id="timer-text">02:00</span>
+            </div>
+
+            <div class="meta-score">
+              <span class="score-label">Pontos da Partida</span>
+              <span class="score-value" id="game-score-val">0</span>
+            </div>
+          </div>
+
+          <!-- 2 Minute Linear Countdown Bar -->
+          <div class="timer-bar-container">
+            <div class="timer-bar-fill" id="timer-bar-fill"></div>
+          </div>
+        </div>
+
+        <!-- Audio Player Visualizer Card -->
+        <div class="audio-player-card">
+          <div class="visualizer-container">
+            <div class="vinyl-disc" id="vinyl-disc">
+              <div class="vinyl-grooves"></div>
+              <div class="vinyl-center">🎵</div>
+            </div>
+
+            <!-- Soundwave bars animation -->
+            <div class="soundwave" id="soundwave">
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+              <div class="bar"></div>
+            </div>
+
+            <div class="player-status-info">
+              <div class="playing-state-badge" id="audio-state-badge">
+                <span class="pulse-dot"></span>
+                <span id="audio-state-text">Tocando trecho...</span>
+              </div>
+              <div class="speed-points-indicator" id="speed-indicator">
+                Pontos de Velocidade: <strong id="speed-val">1000</strong> pts
+              </div>
+            </div>
+          </div>
+
+          <!-- Controls: Replay (RD-03) & Reveal/Give Up (RD-04, RD-05) -->
+          <div class="player-action-buttons">
+            <button type="button" class="btn btn-secondary" id="btn-replay" title="Tocar o trecho de novo">
+              <span class="btn-icon">🔁</span>
+              <span>Replay</span>
+            </button>
+            <button type="button" class="btn btn-outline-danger" id="btn-reveal" title="Desistir da rodada e revelar a resposta">
+              <span class="btn-icon">🏳️</span>
+              <span>Revelar / Desistir</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- MODE 1 INTERFACE: MÚLTIPLA ESCOLHA (M1-01) -->
+        <div class="mode-panel" id="panel-mode-1" style="display: none;">
+          <div class="options-header">
+            <h3>Qual é a música e o artista?</h3>
+            <p>Dica: se acertar só a banda, você ganha 40% dos pontos e pode tentar de novo!</p>
+          </div>
+          <div class="options-grid" id="options-grid">
+            <!-- 4 Option buttons dynamically rendered -->
+          </div>
+        </div>
+
+        <!-- MODE 2 INTERFACE: DIGITAÇÃO (M2-01) -->
+        <div class="mode-panel" id="panel-mode-2" style="display: none;">
+          <div class="typing-header">
+            <h3>Digite o título, o artista ou ambos:</h3>
+            <p>Não precisa de acentos, maiúsculas ou parênteses (ex: Remastered, feat). Acerto a partir de 95%!</p>
+          </div>
+
+          <!-- Live Similarity Meter -->
+          <div class="similarity-meter-card" id="similarity-card">
+            <div class="meter-info">
+              <span class="meter-label">Semelhança do seu palpite:</span>
+              <span class="meter-pct" id="similarity-pct">0%</span>
+            </div>
+            <div class="meter-bar-wrapper">
+              <div class="meter-bar-fill" id="similarity-bar" style="width: 0%;"></div>
+            </div>
+            <div class="meter-status-msg" id="meter-status-msg">
+              Comece a digitar para testar seus palpites!
+            </div>
+          </div>
+
+          <!-- Guess Input Form -->
+          <form class="guess-form" id="guess-form" onsubmit="return false;">
+            <div class="input-wrapper">
+              <input type="text" id="guess-input" class="guess-input" placeholder="Digite o nome da música ou da banda..." autocomplete="off" maxlength="100">
+              <button type="submit" class="btn btn-primary btn-guess" id="btn-submit-guess">
+                Enviar Palpite ↵
+              </button>
+            </div>
+          </form>
+
+          <!-- History of Attempts -->
+          <div class="attempts-history-container">
+            <div class="history-title">Histórico de Palpites da Rodada</div>
+            <div class="attempts-list" id="attempts-list">
+              <div class="empty-history">Nenhum palpite enviado ainda nesta rodada.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- VIEW 3: ROUND REVEAL OVERLAY / MODAL           -->
+    <!-- ============================================== -->
+    <div class="modal-overlay" id="round-reveal-modal" style="display: none;">
+      <div class="modal-card">
+        <div class="reveal-result-banner" id="reveal-banner">
+          <div class="result-icon" id="reveal-icon">🎉</div>
+          <div class="result-title" id="reveal-title">Você Acertou!</div>
+        </div>
+
+        <div class="reveal-track-details">
+          <div class="cover-wrapper">
+            <img id="reveal-cover" src="" alt="Capa do Álbum" class="reveal-cover-img">
+          </div>
+          <div class="track-info">
+            <h2 class="track-title" id="reveal-track-name">Nome da Música</h2>
+            <h3 class="track-artist" id="reveal-artist-name">Banda / Artista</h3>
+            <p class="track-album" id="reveal-album-name">Álbum</p>
+            
+            <div class="round-score-breakdown" id="reveal-score-breakdown">
+              <div class="breakdown-item">
+                <span class="item-label">Pontos da Rodada</span>
+                <strong class="item-value" id="reveal-pts-val">+925 pts</strong>
+              </div>
+              <div class="breakdown-item">
+                <span class="item-label">Placar Acumulado</span>
+                <strong class="item-value" id="reveal-total-val">925 pts</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary btn-next-round" id="btn-next-round">
+            <span>Próxima Rodada</span>
+            <span class="btn-icon">➔</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- VIEW 4: PODIUM / GAME SUMMARY (FIM DA PARTIDA) -->
+    <!-- ============================================== -->
+    <section class="game-view" id="view-podium" style="display: none;">
+      <div class="podium-wrapper">
+        <div class="podium-hero">
+          <div class="podium-trophy">🏆</div>
+          <h1 class="podium-title">Partida Concluída!</h1>
+          <div class="podium-rank-badge" id="podium-rank">Mestre do Ritmo 🎸</div>
+          <p class="podium-subtitle" id="podium-player-congrats">Parabéns, Jogador!</p>
+        </div>
+
+        <!-- Summary Metric Cards -->
+        <div class="summary-metrics-grid">
+          <div class="metric-card">
+            <span class="metric-label">Pontuação Total</span>
+            <strong class="metric-val highlight" id="podium-total-score">0</strong>
+            <span class="metric-sub">pontos acumulados</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Músicas Acertadas</span>
+            <strong class="metric-val" id="podium-correct-count">0/10</strong>
+            <span class="metric-sub" id="podium-accuracy-pct">0% de precisão</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Modo Jogado</span>
+            <strong class="metric-val" id="podium-mode-name">Múltipla Escolha</strong>
+            <span class="metric-sub">tempo padrão 2 min</span>
+          </div>
+        </div>
+
+        <!-- Tracklist Review -->
+        <div class="glass-card review-card">
+          <h2 class="card-title">Músicas desta Partida</h2>
+          <div class="review-tracks-list" id="review-tracks-list">
+            <!-- Populated dynamically with covers, titles and artists -->
+          </div>
+        </div>
+
+        <!-- Action Buttons (PL-07) -->
+        <div class="podium-actions">
+          <button type="button" class="btn btn-primary btn-large" id="btn-play-again">
+            <span class="btn-icon">🔄</span>
+            <span>Jogar Outra Partida</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -2,16 +2,22 @@
 
 Jogo multiplayer de adivinhar músicas para jogar com amigos pelo navegador. O host escolhe uma playlist do Spotify, o servidor roda no próprio computador dele e os amigos entram por um link, sem instalar nada e sem precisar de conta no Spotify.
 
-> **Status:** em desenvolvimento. Requisitos e protocolo definidos; implementação em andamento.
+> **Status:** Sistema desenvolvido e 100% funcional em modo solo/local. **Não exige login nem chaves de API**: basta colar o link de qualquer playlist pública do Spotify ou Deezer!
 
 ---
 
-## Como funciona
+## Como jogar
 
-1. O host faz login com a conta do Spotify e escolhe uma playlist, o modo de jogo e as configurações da partida.
-2. Os amigos abrem o link, escolhem um apelido e clicam em **"Estou pronto"**.
-3. Cada rodada toca um trecho da música ao mesmo tempo para todos. Quem adivinhar mais rápido ganha mais pontos.
-4. No fim, um pódio revela o 3º, o 2º e o 1º lugar.
+1. Execute o executável localmente:
+   ```powershell
+   .\song-guess.exe
+   # ou via código Go:
+   go run .
+   ```
+2. Abra `http://127.0.0.1:8080` no seu navegador.
+3. Cole o link de qualquer playlist pública do **Spotify** (ex: `https://open.spotify.com/playlist/...`) ou do **Deezer** (ex: `https://www.deezer.com/playlist/...`) e clique em **Carregar** (ou pressione Enter).
+4. Escolha seu nome, modo de jogo (Múltipla Escolha ou Digitação), duração do trecho (5s a 30s) e número de rodadas.
+5. Clique em **"Estou Pronto / Iniciar Jogo"** e adivinhe as músicas!
 
 ## Modos de jogo
 
