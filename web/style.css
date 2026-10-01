@@ -973,7 +973,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   margin-bottom: 1.5rem;
 }
 
-/* Vinyl Disc Animation */
+/* Vinyl Disc Animation & Interactive Play/Pause */
 .vinyl-disc {
   width: 110px;
   height: 110px;
@@ -985,11 +985,31 @@ input[type="range"]::-webkit-slider-thumb:hover {
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: transform var(--transition-normal);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.vinyl-disc:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.4), 0 0 10px rgba(0, 0, 0, 0.9);
+}
+
+.vinyl-disc:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-emerald), 0 0 35px rgba(16, 185, 129, 0.6);
+}
+
+.vinyl-disc:active {
+  transform: scale(0.97);
 }
 
 .vinyl-disc.spinning {
   animation: spinRecord 3s linear infinite;
+}
+
+.vinyl-disc.paused {
+  animation-play-state: paused;
 }
 
 @keyframes spinRecord {
@@ -1002,6 +1022,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   inset: 10px;
   border-radius: 50%;
   border: 1px dashed rgba(255, 255, 255, 0.15);
+  pointer-events: none;
 }
 
 .vinyl-center {
@@ -1014,6 +1035,66 @@ input[type="range"]::-webkit-slider-thumb:hover {
   justify-content: center;
   font-size: 1rem;
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+  background-size: cover;
+  background-position: center;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+.vinyl-center.has-cover {
+  width: 52px;
+  height: 52px;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.7), 0 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+/* Vinyl Play / Pause Overlay Badge */
+.vinyl-overlay-badge {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  transform: scale(0.9);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.vinyl-overlay-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.95);
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.8), 0 4px 12px rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  font-weight: bold;
+}
+
+/* Reveal overlay on hover while playing */
+.vinyl-disc.spinning:not(.paused):hover .vinyl-overlay-badge {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Always show overlay when paused or ended */
+.vinyl-disc.paused .vinyl-overlay-badge,
+.vinyl-disc.ended .vinyl-overlay-badge {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.vinyl-disc.paused .vinyl-overlay-icon {
+  background: rgba(245, 158, 11, 0.95);
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.8), 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 /* Soundwave Bouncing Bars */
@@ -1065,6 +1146,17 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--accent-mint);
+  transition: color var(--transition-fast);
+}
+
+.playing-state-badge.badge-paused {
+  color: #fbbf24;
+}
+
+.playing-state-badge.badge-paused .pulse-dot {
+  background: #fbbf24;
+  animation: none;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.7);
 }
 
 .pulse-dot {
@@ -1081,6 +1173,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .speed-points-indicator {
+  display: none !important;
   font-size: 0.95rem;
   color: var(--text-secondary);
 }
@@ -1694,4 +1787,118 @@ input[type="range"]::-webkit-slider-thumb:hover {
   .clip-pill {
     flex: 1 1 40%;
   }
+}
+
+/* ==========================================================
+   Confirm Return-to-Lobby Modal
+   ========================================================== */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: confirmFadeIn 0.2s ease;
+}
+
+@keyframes confirmFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.confirm-modal {
+  background: linear-gradient(135deg, rgba(30, 20, 50, 0.98) 0%, rgba(20, 15, 40, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-xl, 20px);
+  padding: 2.5rem 2rem 2rem;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  animation: confirmSlideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+}
+
+@keyframes confirmSlideUp {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.confirm-icon {
+  font-size: 3rem;
+  margin-bottom: 0.75rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 12px rgba(255, 180, 0, 0.4));
+  animation: confirmIconPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
+}
+
+@keyframes confirmIconPop {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.confirm-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--text-primary, #fff);
+  margin: 0 0 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.confirm-message {
+  font-size: 0.95rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.65));
+  line-height: 1.6;
+  margin: 0 0 2rem;
+}
+
+.confirm-message strong {
+  color: #ff6b6b;
+  font-weight: 700;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Ghost button variant */
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
+}
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* Danger button variant */
+.btn-danger {
+  background: linear-gradient(135deg, #e53935 0%, #c62828 100%);
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(229, 57, 53, 0.4);
+  transition: filter 0.2s, transform 0.15s, box-shadow 0.2s;
+}
+.btn-danger:hover {
+  filter: brightness(1.12);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(229, 57, 53, 0.55);
+}
+.btn-danger:active {
+  filter: brightness(0.95);
+  transform: translateY(0);
 }

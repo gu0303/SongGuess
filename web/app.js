@@ -16,6 +16,12 @@
       this.currentSource = null;
       this.clipSeconds = 10;
       this.isPlaying = false;
+      this.isPaused = false;
+      this.playbackOffset = 0;
+      this.startedAt = 0;
+      this.onStart = null;
+      this.onEnd = null;
+      this.onPause = null;
       this.volume = parseFloat(localStorage.getItem('song_guess_volume') || '0.8');
     }
 
@@ -40,53 +46,115 @@
       }
     }
 
-    async loadAndPlay(audioUrl, clipSeconds, onStart, onEnd) {
+    async loadAndPlay(audioUrl, clipSeconds, onStart, onEnd, onPause) {
       this.init();
       this.stop();
       this.clipSeconds = clipSeconds;
+      this.onStart = onStart;
+      this.onEnd = onEnd;
+      this.onPause = onPause;
 
       try {
         const resp = await fetch(audioUrl);
         const arrayBuf = await resp.arrayBuffer();
         this.currentBuffer = await this.ctx.decodeAudioData(arrayBuf);
-        this.playClip(onStart, onEnd);
+        this.playbackOffset = 0;
+        this.playClip(onStart, onEnd, onPause, 0);
       } catch (err) {
         console.error('Audio load/decode error:', err);
         if (onEnd) onEnd();
       }
     }
 
-    playClip(onStart, onEnd) {
+    playClip(onStart, onEnd, onPause, offset = 0) {
       if (!this.currentBuffer || !this.ctx) return;
-      this.stop();
+      this.stopSourceOnly();
+
+      if (onStart) this.onStart = onStart;
+      if (onEnd) this.onEnd = onEnd;
+      if (onPause) this.onPause = onPause;
+
+      this.playbackOffset = Math.max(0, offset);
+      const totalDuration = this.clipSeconds || 10;
+      const remaining = Math.max(0.1, totalDuration - this.playbackOffset);
 
       this.currentSource = this.ctx.createBufferSource();
       this.currentSource.buffer = this.currentBuffer;
       this.currentSource.connect(this.gainNode);
 
       this.isPlaying = true;
-      if (onStart) onStart();
+      this.isPaused = false;
+      this.startedAt = this.ctx.currentTime;
 
-      // AudioBufferSourceNode.start(when, offset, duration) (PROTOCOLO 1.1)
-      this.currentSource.start(0, 0, this.clipSeconds);
+      if (this.onStart) this.onStart();
+
+      // AudioBufferSourceNode.start(when, offset, duration)
+      this.currentSource.start(0, this.playbackOffset, remaining);
 
       this.currentSource.onended = () => {
-        this.isPlaying = false;
-        if (onEnd) onEnd();
+        // Only trigger onEnd if it ended naturally while playing (not via pause/stop)
+        if (this.isPlaying) {
+          this.isPlaying = false;
+          this.isPaused = false;
+          this.playbackOffset = 0;
+          this.currentSource = null;
+          if (this.onEnd) this.onEnd();
+        }
       };
     }
 
-    stop() {
+    pause() {
+      if (!this.isPlaying || !this.ctx || !this.currentSource) return;
+
+      const elapsed = this.ctx.currentTime - this.startedAt;
+      this.playbackOffset = Math.min(this.clipSeconds, this.playbackOffset + elapsed);
+
+      this.isPlaying = false;
+      this.isPaused = true;
+
+      this.currentSource.onended = null;
+      try {
+        this.currentSource.stop();
+        this.currentSource.disconnect();
+      } catch (e) {}
+      this.currentSource = null;
+
+      if (this.onPause) this.onPause();
+    }
+
+    resume() {
+      if (!this.currentBuffer) return;
+      if (this.playbackOffset >= this.clipSeconds) {
+        this.playbackOffset = 0;
+      }
+      this.playClip(this.onStart, this.onEnd, this.onPause, this.playbackOffset);
+    }
+
+    toggle() {
+      if (this.isPlaying) {
+        this.pause();
+      } else {
+        this.resume();
+      }
+    }
+
+    stopSourceOnly() {
       if (this.currentSource) {
+        this.currentSource.onended = null;
         try {
           this.currentSource.stop();
           this.currentSource.disconnect();
-        } catch (e) {
-          // ignore already stopped
-        }
+        } catch (e) {}
         this.currentSource = null;
       }
       this.isPlaying = false;
+    }
+
+    stop() {
+      this.stopSourceOnly();
+      this.isPlaying = false;
+      this.isPaused = false;
+      this.playbackOffset = 0;
     }
   }
 
@@ -156,6 +224,9 @@
     timerBarFill: document.getElementById('timer-bar-fill'),
     gameScoreVal: document.getElementById('game-score-val'),
     vinylDisc: document.getElementById('vinyl-disc'),
+    vinylCenter: document.getElementById('vinyl-center'),
+    vinylOverlayBadge: document.getElementById('vinyl-overlay-badge'),
+    vinylOverlayIcon: document.getElementById('vinyl-overlay-icon'),
     soundwave: document.getElementById('soundwave'),
     audioStateBadge: document.getElementById('audio-state-badge'),
     audioStateText: document.getElementById('audio-state-text'),
@@ -172,6 +243,7 @@
     meterStatusMsg: document.getElementById('meter-status-msg'),
     guessForm: document.getElementById('guess-form'),
     guessInput: document.getElementById('guess-input'),
+    btnSubmitGuess: document.getElementById('btn-submit-guess'),
     attemptsList: document.getElementById('attempts-list'),
 
     // Reveal Modal
@@ -194,6 +266,11 @@
     podiumModeName: document.getElementById('podium-mode-name'),
     reviewTracksList: document.getElementById('review-tracks-list'),
     btnPlayAgain: document.getElementById('btn-play-again'),
+
+    // Confirm modal
+    confirmOverlay: document.getElementById('confirm-overlay'),
+    confirmBtnOk: document.getElementById('confirm-btn-ok'),
+    confirmBtnCancel: document.getElementById('confirm-btn-cancel'),
   };
 
   // --- INITIALIZATION ---
@@ -379,22 +456,80 @@
     // Start Game
     el.btnStartGame.onclick = startGame;
 
-    // In-game controls
+    // In-game controls: Replay & Vinyl click to pause/unpause
     el.btnReplay.onclick = () => {
-      audio.playClip(onAudioPlayStart, onAudioPlayEnd);
+      audio.playClip(onAudioPlayStart, onAudioPlayEnd, onAudioPause, 0);
+    };
+
+    const toggleVinylPlayback = (e) => {
+      if (e) e.preventDefault();
+      if (state.currentRound && audio.currentBuffer) {
+        audio.toggle();
+      }
+    };
+
+    el.vinylDisc.onclick = toggleVinylPlayback;
+    el.vinylDisc.onkeydown = (e) => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        toggleVinylPlayback(e);
+      }
     };
 
     el.btnReveal.onclick = handleReveal;
 
-    // Mode 2 Guess
-    el.guessForm.onsubmit = submitGuess;
+    // Mode 2 Guess (Prevent default form submission / page reload)
+    if (el.guessForm) {
+      el.guessForm.onsubmit = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        submitGuess(e);
+        return false;
+      };
+    }
+
+    if (el.btnSubmitGuess) {
+      el.btnSubmitGuess.onclick = (e) => {
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        submitGuess(e);
+      };
+    }
+
+    if (el.guessInput) {
+      el.guessInput.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          submitGuess(e);
+        }
+      };
+    }
 
     // Next Round modal
     el.btnNextRound.onclick = loadNextRound;
 
     // Play again
     el.btnPlayAgain.onclick = returnToLobby;
-    el.brandLogo.onclick = returnToLobby;
+    el.brandLogo.onclick = handleLogoClick;
+
+    // Confirm modal buttons
+    el.confirmBtnOk.onclick = () => {
+      hideConfirmModal();
+      returnToLobby();
+    };
+    el.confirmBtnCancel.onclick = hideConfirmModal;
+    el.confirmOverlay.addEventListener('click', (e) => {
+      if (e.target === el.confirmOverlay) hideConfirmModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && el.confirmOverlay.style.display !== 'none') {
+        hideConfirmModal();
+      }
+    });
   }
 
   function setMode(modeNum) {
@@ -509,7 +644,7 @@
       setupRoundUI(rState);
 
       // Play clip automatically
-      audio.loadAndPlay(rState.audioUrl, rState.clipSeconds, onAudioPlayStart, onAudioPlayEnd);
+      audio.loadAndPlay(rState.audioUrl, rState.clipSeconds, onAudioPlayStart, onAudioPlayEnd, onAudioPause);
 
       // Start 2-minute timer
       startRoundTimer();
@@ -526,6 +661,17 @@
     el.gameClipBadge.textContent = `Trecho: ${rState.clipSeconds}s`;
     el.gameScoreVal.textContent = rState.totalScore;
     updateHeaderTicker(rState.roundNumber, rState.totalRounds, rState.totalScore, rState.correctSongs);
+
+    // Reset spinning vinyl disc and center cover
+    if (el.vinylDisc) {
+      el.vinylDisc.classList.remove('spinning', 'paused', 'ended');
+      if (el.vinylOverlayIcon) el.vinylOverlayIcon.textContent = '⏸';
+    }
+    if (el.vinylCenter) {
+      el.vinylCenter.style.backgroundImage = 'none';
+      el.vinylCenter.textContent = '🎵';
+      el.vinylCenter.classList.remove('has-cover');
+    }
 
     // Setup mode-specific UI
     if (state.mode === 1) {
@@ -614,7 +760,11 @@
     el.attemptsList.innerHTML = '<div class="empty-history">Nenhum palpite enviado ainda nesta rodada.</div>';
   }
 
-  async function submitGuess() {
+  async function submitGuess(e) {
+    if (e) {
+      if (e.preventDefault) e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+    }
     const rawText = el.guessInput.value.trim();
     if (!rawText) return;
 
@@ -731,6 +881,16 @@
     el.revealArtistName.textContent = ans.artist;
     el.revealAlbumName.textContent = ans.album;
 
+    // Display individual album cover on vinyl disc center as well
+    if (el.vinylCenter && cover) {
+      el.vinylCenter.style.backgroundImage = `url("${cover}")`;
+      el.vinylCenter.textContent = '';
+      el.vinylCenter.classList.add('has-cover');
+    }
+    if (el.vinylDisc) {
+      el.vinylDisc.classList.remove('paused');
+    }
+
     if (rState.roundPoints > 0) {
       el.revealIcon.textContent = '🎉';
       el.revealTitle.className = 'result-title success';
@@ -782,10 +942,44 @@
     }
   }
 
+  function isGameActive() {
+    return el.viewGame && el.viewGame.style.display !== 'none';
+  }
+
+  function handleLogoClick() {
+    if (isGameActive()) {
+      showConfirmModal();
+    } else {
+      returnToLobby();
+    }
+  }
+
+  function showConfirmModal() {
+    el.confirmOverlay.style.display = 'flex';
+    // Re-trigger animation by forcing reflow
+    el.confirmOverlay.offsetHeight;
+    el.confirmBtnCancel.focus();
+  }
+
+  function hideConfirmModal() {
+    el.confirmOverlay.style.display = 'none';
+  }
+
   function returnToLobby() {
     clearInterval(state.roundTimerInterval);
     clearInterval(state.speedTickerInterval);
     audio.stop();
+    if (el.vinylDisc) {
+      el.vinylDisc.classList.remove('spinning', 'paused', 'ended');
+    }
+    if (el.vinylCenter) {
+      el.vinylCenter.style.backgroundImage = 'none';
+      el.vinylCenter.textContent = '🎵';
+      el.vinylCenter.classList.remove('has-cover');
+    }
+    if (el.audioStateBadge) {
+      el.audioStateBadge.classList.remove('badge-paused');
+    }
     el.roundModal.style.display = 'none';
     el.ticker.style.display = 'none';
     showView('lobby');
@@ -836,16 +1030,32 @@
 
   // --- AUDIO UI SYNC ---
   function onAudioPlayStart() {
+    el.vinylDisc.classList.remove('paused', 'ended');
     el.vinylDisc.classList.add('spinning');
+    if (el.vinylOverlayIcon) el.vinylOverlayIcon.textContent = '⏸';
     el.soundwave.classList.add('active');
     el.audioStateBadge.style.display = 'inline-flex';
-    el.audioStateText.textContent = `Tocando trecho (${state.clipSeconds}s)...`;
+    el.audioStateBadge.classList.remove('badge-paused');
+    el.audioStateText.textContent = `Tocando trecho (${state.clipSeconds}s)... (clique no vinil para pausar)`;
+  }
+
+  function onAudioPause() {
+    el.vinylDisc.classList.remove('ended');
+    el.vinylDisc.classList.add('spinning', 'paused');
+    if (el.vinylOverlayIcon) el.vinylOverlayIcon.textContent = '▶';
+    el.soundwave.classList.remove('active');
+    el.audioStateBadge.style.display = 'inline-flex';
+    el.audioStateBadge.classList.add('badge-paused');
+    el.audioStateText.textContent = 'Pausado (clique no vinil para continuar)';
   }
 
   function onAudioPlayEnd() {
-    el.vinylDisc.classList.remove('spinning');
+    el.vinylDisc.classList.remove('spinning', 'paused');
+    el.vinylDisc.classList.add('ended');
+    if (el.vinylOverlayIcon) el.vinylOverlayIcon.textContent = '▶';
     el.soundwave.classList.remove('active');
-    el.audioStateText.textContent = 'Trecho concluído. Use o Replay se precisar!';
+    el.audioStateBadge.classList.remove('badge-paused');
+    el.audioStateText.textContent = 'Trecho concluído. Clique no vinil para ouvir de novo!';
   }
 
   // --- HELPERS ---

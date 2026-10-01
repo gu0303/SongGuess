@@ -227,9 +227,12 @@
         <!-- Audio Player Visualizer Card -->
         <div class="audio-player-card">
           <div class="visualizer-container">
-            <div class="vinyl-disc" id="vinyl-disc">
+            <div class="vinyl-disc" id="vinyl-disc" role="button" tabindex="0" title="Clique no vinil para pausar ou despausar" aria-label="Pausar ou despausar áudio">
               <div class="vinyl-grooves"></div>
-              <div class="vinyl-center">🎵</div>
+              <div class="vinyl-center" id="vinyl-center">🎵</div>
+              <div class="vinyl-overlay-badge" id="vinyl-overlay-badge" aria-hidden="true">
+                <span class="vinyl-overlay-icon" id="vinyl-overlay-icon">⏸</span>
+              </div>
             </div>
 
             <!-- Soundwave bars animation -->
@@ -251,7 +254,7 @@
                 <span class="pulse-dot"></span>
                 <span id="audio-state-text">Tocando trecho...</span>
               </div>
-              <div class="speed-points-indicator" id="speed-indicator">
+              <div class="speed-points-indicator" id="speed-indicator" style="display: none;">
                 Pontos de Velocidade: <strong id="speed-val">1000</strong> pts
               </div>
             </div>
@@ -303,10 +306,10 @@
           </div>
 
           <!-- Guess Input Form -->
-          <form class="guess-form" id="guess-form" onsubmit="return false;">
+          <form class="guess-form" id="guess-form" onsubmit="event.preventDefault(); return false;">
             <div class="input-wrapper">
               <input type="text" id="guess-input" class="guess-input" placeholder="Digite o nome da música ou da banda..." autocomplete="off" maxlength="100">
-              <button type="submit" class="btn btn-primary btn-guess" id="btn-submit-guess">
+              <button type="button" class="btn btn-primary btn-guess" id="btn-submit-guess">
                 Enviar Palpite ↵
               </button>
             </div>
@@ -415,6 +418,22 @@
     </section>
 
   </main>
+
+  <!-- Confirm Return to Lobby Modal -->
+  <div class="confirm-overlay" id="confirm-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="confirm-modal" id="confirm-modal">
+      <div class="confirm-icon">⚠️</div>
+      <h2 class="confirm-title" id="confirm-title">Voltar ao Menu?</h2>
+      <p class="confirm-message">Se sair agora você <strong>perderá toda a pontuação</strong> acumulada nesta partida. Tem certeza?</p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-ghost confirm-btn-cancel" id="confirm-btn-cancel">Continuar Jogando</button>
+        <button type="button" class="btn btn-danger confirm-btn-ok" id="confirm-btn-ok">
+          <span class="btn-icon">🚪</span>
+          <span>Sair da Partida</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

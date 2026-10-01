@@ -133,6 +133,11 @@ func (gm *GameManager) NextRound() (*RoundPublicState, error) {
 		gm.TargetTracks[gm.CurrentIndex].AudioToken = audioToken
 	}
 
+	// Pre-resolve individual track album cover & album name in background if needed
+	go func(title, artist string) {
+		ResolveTrackCoverAndAlbum(title, artist)
+	}(target.Title, target.Artist)
+
 	now := time.Now()
 	// RD-01: 2 minutes duration
 	endsAt := now.Add(120 * time.Second)
@@ -430,11 +435,27 @@ func (gm *GameManager) HandleTimeout() (*RoundPublicState, error) {
 }
 
 func (gm *GameManager) recordAnswer(round *ActiveRound) {
+	cover := round.TargetTrack.CoverURL
+	album := round.TargetTrack.Album
+
+	// Guarantee individual cover & real album: if missing or still equal to playlist name/fallback
+	if cover == "" || album == "" || (gm.Config.PlaylistName != "" && album == gm.Config.PlaylistName) {
+		resCover, resAlbum := ResolveTrackCoverAndAlbum(round.TargetTrack.Title, round.TargetTrack.Artist)
+		if resCover != "" {
+			cover = resCover
+			round.TargetTrack.CoverURL = resCover
+		}
+		if resAlbum != "" {
+			album = resAlbum
+			round.TargetTrack.Album = resAlbum
+		}
+	}
+
 	ans := &RoundAnswer{
 		Title:      round.TargetTrack.Title,
 		Artist:     round.TargetTrack.Artist,
-		Album:      round.TargetTrack.Album,
-		CoverURL:   round.TargetTrack.CoverURL,
+		Album:      album,
+		CoverURL:   cover,
 		SpotifyURL: round.TargetTrack.SpotifyURL,
 	}
 	round.RoundAnswer = ans

@@ -137,6 +137,111 @@ func FindTrackByISRC(isrc string) (*Track, error) {
 	}, nil
 }
 
+func getHighResArtwork(urlStr string) string {
+	if strings.Contains(urlStr, "100x100bb") {
+		return strings.Replace(urlStr, "100x100bb", "600x600bb", 1)
+	}
+	if strings.Contains(urlStr, "100x100") {
+		return strings.Replace(urlStr, "100x100", "600x600", 1)
+	}
+	return urlStr
+}
+
+type TrackMeta struct {
+	CoverURL string
+	Album    string
+}
+
+var (
+	trackMetaCacheMutex sync.RWMutex
+	trackMetaCache      = make(map[string]TrackMeta)
+)
+
+// ResolveTrackCoverAndAlbum finds the exact individual album cover and album name for a track.
+// It searches iTunes first (returns 600x600 HD cover) and falls back to Deezer Search (500x500).
+func ResolveTrackCoverAndAlbum(title, artist string) (string, string) {
+	title = strings.TrimSpace(title)
+	artist = strings.TrimSpace(artist)
+	if title == "" {
+		return "", ""
+	}
+
+	cleanKey := strings.ToLower(artist + " - " + title)
+	trackMetaCacheMutex.RLock()
+	cached, ok := trackMetaCache[cleanKey]
+	trackMetaCacheMutex.RUnlock()
+	if ok && cached.CoverURL != "" {
+		return cached.CoverURL, cached.Album
+	}
+
+	// 1. Try iTunes search first (fast, reliable, free, 600x600 artwork)
+	term := fmt.Sprintf("%s %s", artist, title)
+	apiURL := fmt.Sprintf("https://itunes.apple.com/search?term=%s&entity=song&limit=3", url.QueryEscape(term))
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err == nil {
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		resp, err := httpClient.Do(req)
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				var itResp iTunesSearchResponse
+				if err := json.NewDecoder(resp.Body).Decode(&itResp); err == nil {
+					for _, item := range itResp.Results {
+						if item.ArtworkURL100 != "" {
+							cover := getHighResArtwork(item.ArtworkURL100)
+							album := item.CollectionName
+							meta := TrackMeta{CoverURL: cover, Album: album}
+							trackMetaCacheMutex.Lock()
+							trackMetaCache[cleanKey] = meta
+							trackMetaCacheMutex.Unlock()
+							return cover, album
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Fallback: Deezer search
+	searchURL := fmt.Sprintf("https://api.deezer.com/2.0/search?q=%s", url.QueryEscape(term))
+	reqD, errD := http.NewRequest(http.MethodGet, searchURL, nil)
+	if errD == nil {
+		reqD.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		respD, errD := httpClient.Do(reqD)
+		if errD == nil {
+			defer respD.Body.Close()
+			if respD.StatusCode == http.StatusOK {
+				var dSearch struct {
+					Data []struct {
+						Title string `json:"title"`
+						Album struct {
+							Title    string `json:"title"`
+							CoverBig string `json:"cover_big"`
+							Cover    string `json:"cover"`
+						} `json:"album"`
+					} `json:"data"`
+				}
+				if err := json.NewDecoder(respD.Body).Decode(&dSearch); err == nil && len(dSearch.Data) > 0 {
+					cover := dSearch.Data[0].Album.CoverBig
+					if cover == "" {
+						cover = dSearch.Data[0].Album.Cover
+					}
+					album := dSearch.Data[0].Album.Title
+					if cover != "" {
+						meta := TrackMeta{CoverURL: cover, Album: album}
+						trackMetaCacheMutex.Lock()
+						trackMetaCache[cleanKey] = meta
+						trackMetaCacheMutex.Unlock()
+						return cover, album
+					}
+				}
+			}
+		}
+	}
+
+	return "", ""
+}
+
 // FindTrackByiTunes searches iTunes as a fallback when Deezer doesn't have the track (REQUISITOS.md).
 func FindTrackByiTunes(title, artist string) (*Track, error) {
 	term := fmt.Sprintf("%s %s", artist, title)
@@ -164,7 +269,7 @@ func FindTrackByiTunes(title, artist string) (*Track, error) {
 				Title:      item.TrackName,
 				Artist:     item.ArtistName,
 				Album:      item.CollectionName,
-				CoverURL:   item.ArtworkURL100,
+				CoverURL:   getHighResArtwork(item.ArtworkURL100),
 				PreviewURL: item.PreviewURL,
 			}, nil
 		}

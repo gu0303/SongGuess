@@ -46,6 +46,17 @@ func TestFetchPublicSpotifyPlaylist(t *testing.T) {
 	}
 }
 
+func TestResolveTrackCoverAndAlbum(t *testing.T) {
+	cover, album := ResolveTrackCoverAndAlbum("Nicole Kidman", "ADÉLA")
+	if cover == "" {
+		t.Errorf("Expected non-empty cover URL for track")
+	}
+	if album == "" {
+		t.Errorf("Expected non-empty album name for track")
+	}
+	t.Logf("Resolved Cover: %s, Album: %s", cover, album)
+}
+
 func TestExtractDeezerEntityID(t *testing.T) {
 	cases := []struct {
 		input        string

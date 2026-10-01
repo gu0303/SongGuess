@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -168,11 +169,20 @@ func FetchPublicSpotifyPlaylist(entityType, entityID string) (*Playlist, error) 
 		}
 
 		previewURL := t.AudioPreview.URL
+		trackCover := cover
+		trackAlbum := entity.Name
+
 		// If preview URL is missing, try iTunes search as fallback
 		if previewURL == "" {
 			itTrack, err := FindTrackByiTunes(t.Title, artist)
 			if err == nil && itTrack.PreviewURL != "" {
 				previewURL = itTrack.PreviewURL
+				if itTrack.CoverURL != "" {
+					trackCover = itTrack.CoverURL
+				}
+				if itTrack.Album != "" {
+					trackAlbum = itTrack.Album
+				}
 			}
 		}
 
@@ -184,14 +194,19 @@ func FetchPublicSpotifyPlaylist(entityType, entityID string) (*Playlist, error) 
 			ID:         fmt.Sprintf("sp_%d", i+1),
 			Title:      t.Title,
 			Artist:     artist,
-			Album:      entity.Name,
-			CoverURL:   cover,
+			Album:      trackAlbum,
+			CoverURL:   trackCover,
 			PreviewURL: previewURL,
 		})
 	}
 
 	if len(validTracks) < 4 {
 		return nil, fmt.Errorf("a playlist possui apenas %d faixas com áudio disponível (mínimo necessário: 4)", len(validTracks))
+	}
+
+	// Concurrently resolve individual album covers & album names for playlist tracks
+	if entityType != "album" {
+		enrichSpotifyTracks(validTracks, cover)
 	}
 
 	typeLabel := "Playlist"
@@ -210,4 +225,42 @@ func FetchPublicSpotifyPlaylist(entityType, entityID string) (*Playlist, error) 
 	}
 	CachePlaylist(pl)
 	return pl, nil
+}
+
+// enrichSpotifyTracks resolves individual track album covers in parallel.
+func enrichSpotifyTracks(tracks []Track, playlistCover string) {
+	numWorkers := 8
+	if len(tracks) < numWorkers {
+		numWorkers = len(tracks)
+	}
+	if numWorkers <= 0 {
+		return
+	}
+
+	jobs := make(chan int, len(tracks))
+	var wg sync.WaitGroup
+
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				if tracks[idx].CoverURL == playlistCover || tracks[idx].CoverURL == "" {
+					cov, alb := ResolveTrackCoverAndAlbum(tracks[idx].Title, tracks[idx].Artist)
+					if cov != "" {
+						tracks[idx].CoverURL = cov
+					}
+					if alb != "" {
+						tracks[idx].Album = alb
+					}
+				}
+			}
+		}()
+	}
+
+	for i := range tracks {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
 }
